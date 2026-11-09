@@ -8,13 +8,15 @@ from modules.blockchain_engine import Blockchain
 
 st.set_page_config(page_title="Sistema de Protección, Esteganografía y Blockchain", layout="wide")
 
-# Inicialización del estado de sesión
+# Inicialización segura del estado de sesión para la Blockchain
 if 'blockchain' not in st.session_state:
     st.session_state.blockchain = Blockchain()
 
-if 'keys' not in st.session_state:
+# Generación segura de llaves RSA en cada ejecución o sesión limpia
+if 'rsa_private_key' not in st.session_state or 'rsa_public_key' not in st.session_state:
     priv, pub = CryptoEngine.generate_rsa_keypair()
-    st.session_state.keys = {'private': priv, 'public': pub}
+    st.session_state.rsa_private_key = priv
+    st.session_state.rsa_public_key = pub
 
 st.title("🛡️ Sistema Integrado: Criptografía, Esteganografía y Blockchain")
 st.markdown("Plataforma de protección integral de evidencias digitales y transmisión confidencial.")
@@ -36,13 +38,13 @@ with tabs[0]:
                 start_time = time.time()
                 file_bytes = uploaded_file.read()
                 
-                # 1. Hashes originales y firmas
+                # 1. Hashes originales y firmas usando las llaves de sesión
                 file_hash = CryptoEngine.generate_sha256(file_bytes)
-                signature = CryptoEngine.sign_rsa_pss(file_bytes, st.session_state.keys['private'])
+                signature = CryptoEngine.sign_rsa_pss(file_bytes, st.session_state.rsa_private_key)
                 
                 # 2. Cifrado AES-GCM
                 aes_res = CryptoEngine.encrypt_aes_gcm(file_bytes)
-                enc_aes_key = CryptoEngine.encrypt_rsa_oaep(aes_res['key'], st.session_state.keys['public'])
+                enc_aes_key = CryptoEngine.encrypt_rsa_oaep(aes_res['key'], st.session_state.rsa_public_key)
                 
                 # Empaquetado de la carga útil
                 payload_dict = {
@@ -102,7 +104,7 @@ with tabs[1]:
                 payload = json.loads(raw_payload.decode())
                 
                 # 2. Descifrar Clave AES mediante RSA-OAEP
-                aes_key = CryptoEngine.decrypt_rsa_oaep(bytes.fromhex(payload['enc_key']), st.session_state.keys['private'])
+                aes_key = CryptoEngine.decrypt_rsa_oaep(bytes.fromhex(payload['enc_key']), st.session_state.rsa_private_key)
                 
                 # 3. Descifrar Archivo con AES-GCM
                 original_bytes = CryptoEngine.decrypt_aes_gcm(
@@ -115,7 +117,7 @@ with tabs[1]:
                 is_sig_valid = CryptoEngine.verify_rsa_pss(
                     original_bytes,
                     bytes.fromhex(payload['signature']),
-                    st.session_state.keys['public']
+                    st.session_state.rsa_public_key
                 )
                 
                 extracted_hash = CryptoEngine.generate_sha256(original_bytes)
